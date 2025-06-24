@@ -17,30 +17,48 @@ const calculateGasFees = async (
   provider: EIP1193Provider,
   priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM'
 ): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> => {
-  const { PRIORITY_FEE_PERCENTILES, FEE_HISTORY_BLOCKS, BASE_FEE_MULTIPLIERS } = DEFAULT_GAS_SETTINGS
+  const { BASE_FEE_MULTIPLIERS } = DEFAULT_GAS_SETTINGS
   
-  // Get fee history for last N blocks
-  const feeHistory = await provider.request({
-    method: 'eth_feeHistory',
-    params: [
-      FEE_HISTORY_BLOCKS,
-      'latest',
-      PRIORITY_FEE_PERCENTILES
-    ]
-  })
+  try {
+    // Get fee history for last block
+    const feeHistory = await provider.request({
+      method: 'eth_feeHistory',
+      params: [
+        1,  // just get latest block
+        'latest',
+        []   // no percentiles needed since we don't get rewards
+      ]
+    })
 
-  // Get base fee from latest block
-  const baseFee = BigInt(feeHistory.baseFeePerGas[feeHistory.baseFeePerGas.length - 1])
-  
-  // Get priority fee based on network conditions
-  const priorityFeeIndex = priority === 'LOW' ? 0 : priority === 'HIGH' ? 2 : 1
-  const maxPriorityFeePerGas = BigInt(feeHistory.reward[feeHistory.reward.length - 1][priorityFeeIndex])
-  
-  // Calculate max fee using appropriate multiplier
-  const multiplier = BASE_FEE_MULTIPLIERS[priority]
-  const maxFeePerGas = BigInt(Math.floor(Number(baseFee) * multiplier)) + maxPriorityFeePerGas
+    console.log('Fee history response:', feeHistory)
 
-  return { maxFeePerGas, maxPriorityFeePerGas }
+    if (!feeHistory?.baseFeePerGas?.[0]) {
+      throw new Error('Invalid fee history response')
+    }
+
+    // Get base fee from response
+    const baseFee = BigInt(feeHistory.baseFeePerGas[0])
+    console.log('Base fee:', baseFee.toString())
+    
+    // Use a fixed priority fee since the network doesn't provide reward data
+    const priorityFeePerGas = BigInt(100000000) // 0.1 gwei
+    
+    // Calculate max fee using appropriate multiplier
+    const multiplier = BASE_FEE_MULTIPLIERS[priority]
+    const maxFeePerGas = BigInt(Math.floor(Number(baseFee) * multiplier)) + priorityFeePerGas
+    console.log('Priority fee:', priorityFeePerGas.toString())
+    console.log('Max fee:', maxFeePerGas.toString())
+
+    return { maxFeePerGas, maxPriorityFeePerGas: priorityFeePerGas }
+  } catch (error) {
+    console.warn('Error getting fee history, using fallback values:', error)
+    // Fallback to fixed values if anything goes wrong
+    const baseFeePerGas = BigInt(1000000000) // 1 gwei
+    const priorityFeePerGas = BigInt(100000000) // 0.1 gwei
+    const multiplier = BASE_FEE_MULTIPLIERS[priority]
+    const maxFeePerGas = BigInt(Math.floor(Number(baseFeePerGas) * multiplier)) + priorityFeePerGas
+    return { maxFeePerGas, maxPriorityFeePerGas: priorityFeePerGas }
+  }
 }
 
 export const sendTransaction = async (
@@ -108,7 +126,7 @@ export const sendTransaction = async (
     // 5. Build EIP-1559 transaction array
     const txArray = [
       toHex(chainIdInt),                    // chainId
-      toHex(nonce),                         // nonce
+      nonce === 0 ? '0x' : toHex(nonce),    // nonce (special case for 0)
       toHex(maxPriorityFeePerGas),         // maxPriorityFeePerGas
       toHex(maxFeePerGas),                 // maxFeePerGas
       toHex(gasLimit),                     // gasLimit
