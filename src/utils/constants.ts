@@ -7,7 +7,7 @@ export const TEN_ADDRESSES = {
   SESSION_KEY_EXECUTE: '0x0000000000000000000000000000000000000008'
 } as const
 
-export const TEN_CHAIN_ID = 443
+export const TEN_CHAIN_ID = 8443
 
 export const DEFAULT_GAS_SETTINGS = {
   // Use percentiles for different network conditions

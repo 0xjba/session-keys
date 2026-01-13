@@ -1,6 +1,6 @@
 {
   "name": "@tenprotocol/session-keys",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Framework-agnostic session key management for TEN Protocol",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
